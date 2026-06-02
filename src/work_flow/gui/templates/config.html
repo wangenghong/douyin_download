@@ -1,0 +1,132 @@
+﻿{% extends "base.html" %}
+{% block title %}配置 - 抖音爬虫{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>爬虫配置</h1>
+    <p class="subtitle">填写参数并启动爬虫任务</p>
+</div>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+
+{% if profiles %}
+<div class="saved-profiles">
+    <h2>已保存用户</h2>
+    <div class="profile-list">
+        {% for profile in profiles %}
+        <div class="profile-card">
+            <div class="profile-main">
+                <div class="profile-avatar">
+                    {% if profile.avatar_url %}
+                    <img src="{{ profile.avatar_url }}" alt="{{ profile.user_name }} 头像" loading="lazy">
+                    {% else %}
+                    <span>{{ profile.user_name[:1] if profile.user_name else "D" }}</span>
+                    {% endif %}
+                </div>
+                <h3 class="profile-name">{{ profile.user_name }}</h3>
+            </div>
+            <div class="profile-actions">
+                <form method="post" action="/crawl" class="profile-update-form">
+                    <input type="hidden" name="user_name" value="{{ profile.user_name }}">
+                    <input type="hidden" name="user_id" value="{{ profile.user_id }}">
+                    <input type="hidden" name="cookie" value="{{ defaults.cookie }}">
+                    <input type="hidden" name="max_posts" value="10">
+                    <input type="hidden" name="output_dir" value="{{ profile.output_dir or defaults.output_dir }}">
+                    <input type="hidden" name="headless" value="{{ defaults.headless }}">
+                    <label class="sr-only" for="saved-crawl-mode-{{ loop.index }}">更新类型</label>
+                    <select id="saved-crawl-mode-{{ loop.index }}" name="crawl_mode" class="profile-mode-select">
+                        <option value="image">图片</option>
+                        <option value="video">视频</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary profile-update-btn">更新</button>
+                </form>
+                <form method="post" action="/profiles/delete" onsubmit="return confirm('删除这个爬取对象？已下载作品不会被删除。');">
+                    <input type="hidden" name="user_id" value="{{ profile.user_id }}">
+                    <input type="hidden" name="output_dir" value="{{ profile.output_dir or defaults.output_dir }}">
+                    <button type="submit" class="btn btn-secondary profile-delete-btn">删除</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="config-form">
+    <form method="post" action="/crawl" class="form-card">
+        <div class="form-group">
+            <label for="user_name">显示名称 <span class="required">*</span></label>
+            <input type="text" id="user_name" name="user_name" value="{{ defaults.user_name }}" placeholder="例如: 张三" required>
+            <small>用于创建 output 下的子目录名，如不填则使用 User ID</small>
+        </div>
+        <div class="form-group">
+            <label for="user_id">Douyin User ID <span class="required">*</span></label>
+            <input type="text" id="user_id" name="user_id" value="{{ defaults.user_id }}" placeholder="例如: Ziky_XY 或 MS4wLjABAAAA..." required>
+            <small>在抖音分享链接中，user/ 后面的那一段</small>
+        </div>
+        <div class="form-group">
+            <label for="cookie">Cookie (可选)</label>
+            <textarea id="cookie" name="cookie" rows="3" placeholder="粘贴浏览器 Cookie 字符串">{{ defaults.cookie }}</textarea>
+            <small>用于绕过反爬，复制整个 Cookie 字符串</small>
+        </div>
+        <div class="form-group">
+            <label for="crawl_mode">爬取类型</label>
+            <select id="crawl_mode" name="crawl_mode">
+                <option value="image" {% if defaults.crawl_mode == "image" %}selected{% endif %}>图片作品</option>
+                <option value="video" {% if defaults.crawl_mode == "video" %}selected{% endif %}>视频作品（仅缓存封面）</option>
+            </select>
+            <small>视频模式首次只缓存封面与元数据，后续在作品详情页手动下载视频</small>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="max_posts">最大作品数</label>
+                <input type="number" id="max_posts" name="max_posts" value="{{ defaults.max_posts }}" min="1" max="1000">
+            </div>
+            <div class="form-group">
+                <label for="output_dir">输出目录</label>
+                <input type="text" id="output_dir" name="output_dir" value="{{ defaults.output_dir }}" placeholder="./output">
+            </div>
+            <div class="form-group">
+                <label for="headless">浏览器模式</label>
+                <select id="headless" name="headless">
+                    <option value="true" {% if defaults.headless == "true" %}selected{% endif %}>无头模式</option>
+                    <option value="false" {% if defaults.headless == "false" %}selected{% endif %}>可视模式</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">启动爬虫</button>
+    </form>
+</div>
+
+{% if tasks %}
+<div class="task-list">
+    <h2>任务记录</h2>
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th>任务 ID</th>
+                <th>用户</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>启动时间</th>
+                <th>信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tasks %}
+            <tr>
+                <td><code>{{ t.id }}</code></td>
+                <td>{{ t.user_id }}</td>
+                <td>{{ "视频" if t.crawl_mode == "video" else "图片" }}</td>
+                <td><span class="status-badge status-{{ t.status }}">{{ t.status }}</span></td>
+                <td>{{ t.started_at }}</td>
+                <td class="task-msg">{{ t.message }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}首页 - 抖音爬虫{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>用户作品目录</h1>
+    <p class="subtitle">数据根目录: <code>{{ output_dir }}</code></p>
+</div>
+{% if tasks %}
+<section class="task-overview" aria-label="最近任务">
+    <div class="task-overview-header">
+        <div>
+            <p class="section-eyebrow">Crawl status</p>
+            <h2>最近任务</h2>
+        </div>
+        <a href="/config" class="btn btn-secondary btn-small">查看任务</a>
+    </div>
+    <div class="task-stat-grid">
+        <div class="task-stat" data-status="running">
+            <span class="task-stat-value">{{ task_summary.counts.running }}</span>
+            <span class="task-stat-label">运行中</span>
+        </div>
+        <div class="task-stat" data-status="completed">
+            <span class="task-stat-value">{{ task_summary.counts.completed }}</span>
+            <span class="task-stat-label">已完成</span>
+        </div>
+        <div class="task-stat" data-status="failed">
+            <span class="task-stat-value">{{ task_summary.counts.failed }}</span>
+            <span class="task-stat-label">失败</span>
+        </div>
+    </div>
+    {% if task_summary.recent %}
+    <div class="recent-task-row" data-status="{{ task_summary.recent.status }}">
+        <span class="status-badge status-{{ task_summary.recent.status }}">{{ task_summary.recent.status }}</span>
+        <span class="recent-task-main">{{ task_summary.recent.user_id }} · {{ "视频" if task_summary.recent.crawl_mode == "video" else "图片" }}</span>
+        <span class="recent-task-message">{{ task_summary.recent.message }}</span>
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+{% if users %}
+<div class="user-grid">
+    {% for user in users %}
+    <div class="user-card">
+        <a href="/user/{{ user.dir_name | quote }}/" class="user-link">
+            <div class="user-avatar">
+                {% if user.avatar_url %}
+                <img src="{{ user.avatar_url }}" alt="{{ user.display_name }} 头像" loading="lazy">
+                {% else %}
+                <span aria-hidden="true">{{ (user.display_name or user.dir_name)[:1] }}</span>
+                {% endif %}
+            </div>
+            <div class="user-info">
+                <h3>{{ user.display_name or user.dir_name }}</h3>
+                {% if user.user_id %}
+                <p class="user-id">{{ user.user_id }}</p>
+                {% endif %}
+                <p class="post-count">{{ user.post_count }} 个作品</p>
+            </div>
+        </a>
+        {% if user.user_id %}
+        <form method="post" action="/crawl" class="recrawl-form">
+            <input type="hidden" name="user_name" value="{{ user.display_name or user.dir_name }}">
+            <input type="hidden" name="user_id" value="{{ user.user_id }}">
+            <input type="hidden" name="cookie" value="{{ defaults.cookie }}">
+            <input type="hidden" name="crawl_mode" value="image">
+            <input type="hidden" name="max_posts" value="10">
+            <input type="hidden" name="output_dir" value="{{ defaults.output_dir }}">
+            <input type="hidden" name="headless" value="{{ defaults.headless }}">
+            <button type="submit" class="icon-btn" title="再次更新" aria-label="再次更新 {{ user.display_name or user.dir_name }}">↻</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p class="empty-icon" aria-hidden="true">--</p>
+    <p>暂无数据，请先运行爬虫</p>
+    <a href="/config" class="btn btn-primary">前往配置</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}{{ user.dir_name }} - 抖音爬虫{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">首页</a> / <span>{{ user.dir_name }}</span>
+</div>
+<div class="page-header">
+    <h1>{{ user.dir_name }}</h1>
+    <p class="subtitle">共 {{ total }} 个作品</p>
+</div>
+
+<div class="toolbar workbench-toolbar">
+    <div class="toolbar-left filter-controls">
+        <label class="search-control" for="post-search">
+            <span class="sr-only">搜索作品</span>
+            <input id="post-search" type="search" placeholder="搜索标题或日期" autocomplete="off">
+        </label>
+        <label class="select-control" for="media-filter">
+            <span class="sr-only">媒体类型</span>
+            <select id="media-filter">
+                <option value="all">全部类型</option>
+                <option value="image">图片</option>
+                <option value="video">视频</option>
+                <option value="motion">动图</option>
+                <option value="video-downloaded">已下载视频</option>
+                <option value="video-cover">仅封面</option>
+            </select>
+        </label>
+        <button class="fav-filter-btn" id="fav-filter-btn" type="button" title="Favorites">☆ 仅看收藏</button>
+    </div>
+    <div class="toolbar-right density-controls">
+        <span class="filter-count" id="filter-count">显示 {{ posts | length }} / 本页 {{ posts | length }} / 总数 {{ total }}</span>
+        <span class="density-label">布局</span>
+        <button class="density-btn active" data-density="comfortable" title="大图">▦</button>
+        <button class="density-btn" data-density="compact" title="中图">▦▦</button>
+        <button class="density-btn" data-density="dense" title="小图">▦▦▦</button>
+    </div>
+</div>
+
+<div class="thumb-grid comfortable" id="thumb-grid">
+    {% for post in posts %}
+    <div class="thumb-card"
+         data-dir="{{ post.dir_name }}"
+         data-title="{{ post.title | lower }}"
+         data-date="{{ post.date_str }}"
+         data-media-kind="{{ post.media_kind }}"
+         data-motion="{{ 'true' if post.motion_available else 'false' }}"
+         data-video-downloaded="{{ 'true' if post.video_downloaded else 'false' }}"
+         data-preview-url="/user/{{ user.dir_name | quote }}/{{ post.dir_name | quote }}/json"
+         data-detail-url="/user/{{ user.dir_name | quote }}/{{ post.dir_name | quote }}/">
+        <button class="fav-btn" data-post="{{ post.dir_name }}" onclick="toggleFav(this, event)" title="收藏" aria-label="收藏 {{ post.title }}">★</button>
+        {% if post.media_kind == "video" %}
+        <span class="post-kind-badge">视频</span>
+        {% elif post.motion_available %}
+        <span class="post-kind-badge">动图</span>
+        {% endif %}
+        <a href="/user/{{ user.dir_name | quote }}/{{ post.dir_name | quote }}/" class="thumb-link">
+            <div class="thumb-img">
+                {% if post.media_kind == "image" and post.motion_available and post.motion_src %}
+                <video muted loop playsinline preload="metadata" poster="{{ data_prefix }}/{{ post.dir_name | quote }}/{{ post.thumbnail if post.thumbnail else post.first_image }}">
+                    <source src="{{ post.motion_src }}" type="video/mp4">
+                </video>
+                {% else %}
+                <img src="{{ data_prefix }}/{{ post.dir_name | quote }}/{{ post.thumbnail if post.thumbnail else post.first_image }}" alt="{{ post.title }}" loading="lazy">
+                {% endif %}
+            </div>
+            <div class="thumb-meta">
+                <p class="thumb-date">{{ post.date_str }}</p>
+                <p class="thumb-title">{{ post.title[:30] }}{% if post.title|length > 30 %}...{% endif %}</p>
+                {% if post.media_kind == "video" %}
+                <p class="thumb-subtitle">{{ "视频已下载" if post.video_downloaded else "仅缓存封面" }}</p>
+                {% elif post.motion_available %}
+                <p class="thumb-subtitle">动图可播放</p>
+                {% endif %}
+            </div>
+        </a>
+        <div class="thumb-actions">
+            <button type="button" class="preview-btn" onclick="openPreview(this, event)">预览</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="empty-state filter-empty" id="filter-empty" hidden>
+    <p class="empty-icon" aria-hidden="true">--</p>
+    <p>没有符合条件的作品</p>
+</div>
+
+<div class="preview-scrim" id="preview-scrim" hidden></div>
+<aside class="preview-drawer" id="preview-drawer" aria-label="作品快速预览" aria-hidden="true">
+    <div class="preview-drawer-header">
+        <div>
+            <p class="section-eyebrow" id="preview-kind">Preview</p>
+            <h2 id="preview-title">作品预览</h2>
+            <p class="preview-meta" id="preview-meta"></p>
+        </div>
+        <button type="button" class="drawer-close" id="preview-close" aria-label="关闭预览">×</button>
+    </div>
+    <div class="preview-media" id="preview-media"></div>
+    <div class="preview-info" id="preview-info"></div>
+    <div class="preview-actions">
+        <a class="btn btn-primary" id="preview-detail" href="#">打开详情</a>
+        <form method="post" action="#" id="preview-download-form" hidden>
+            <button type="submit" class="btn btn-secondary" id="preview-download">下载视频</button>
+        </form>
+    </div>
+</aside>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+        <a class="page-btn" href="?page={{ page-1 }}">&laquo; 上一页</a>
+    {% else %}
+        <button class="page-btn" disabled>&laquo; 上一页</button>
+    {% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+        <a class="page-btn" href="?page={{ page+1 }}">下一页 &raquo;</a>
+    {% else %}
+        <button class="page-btn" disabled>下一页 &raquo;</button>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function() {
+    var grid = document.getElementById('thumb-grid');
+    var btns = document.querySelectorAll('.density-btn');
+    var saved = localStorage.getItem('douyin-density') || 'comfortable';
+    grid.className = 'thumb-grid ' + saved;
+    btns.forEach(function(b) {
+        if (b.dataset.density === saved) b.classList.add('active');
+        else b.classList.remove('active');
+        b.addEventListener('click', function() {
+            var d = b.dataset.density;
+            grid.className = 'thumb-grid ' + d;
+            localStorage.setItem('douyin-density', d);
+            btns.forEach(function(x) { x.classList.remove('active'); });
+            b.classList.add('active');
+        });
+    });
+})();
+
+var favFilterOn = false;
+var favKey = 'douyin-favs-' + '{{ user.dir_name }}';
+var favs = JSON.parse(localStorage.getItem(favKey) || '[]');
+var cards = Array.prototype.slice.call(document.querySelectorAll('.thumb-card'));
+var searchInput = document.getElementById('post-search');
+var mediaFilter = document.getElementById('media-filter');
+var filterCount = document.getElementById('filter-count');
+var filterEmpty = document.getElementById('filter-empty');
+var pageTotal = cards.length;
+var allTotal = {{ total }};
+
+document.querySelectorAll('.fav-btn').forEach(function(btn) {
+    if (favs.indexOf(btn.dataset.post) !== -1) btn.classList.add('faved');
+});
+
+function matchesMedia(card, selected) {
+    if (selected === 'all') return true;
+    if (selected === 'motion') return card.dataset.motion === 'true';
+    if (selected === 'video-downloaded') return card.dataset.mediaKind === 'video' && card.dataset.videoDownloaded === 'true';
+    if (selected === 'video-cover') return card.dataset.mediaKind === 'video' && card.dataset.videoDownloaded !== 'true';
+    return card.dataset.mediaKind === selected;
+}
+
+function applyFilters() {
+    var query = (searchInput.value || '').trim().toLowerCase();
+    var selected = mediaFilter.value;
+    var visible = 0;
+    cards.forEach(function(card) {
+        var haystack = (card.dataset.title || '') + ' ' + (card.dataset.date || '');
+        var match = (!query || haystack.indexOf(query) !== -1)
+            && matchesMedia(card, selected)
+            && (!favFilterOn || favs.indexOf(card.dataset.dir) !== -1);
+        card.style.display = match ? '' : 'none';
+        if (match) visible += 1;
+    });
+    filterCount.textContent = '显示 ' + visible + ' / 本页 ' + pageTotal + ' / 总数 ' + allTotal;
+    filterEmpty.hidden = visible !== 0;
+}
+
+document.getElementById('fav-filter-btn').addEventListener('click', function() {
+    favFilterOn = !favFilterOn;
+    this.classList.toggle('active', favFilterOn);
+    this.textContent = favFilterOn ? '★ 仅看收藏' : '☆ 仅看收藏';
+    localStorage.setItem('douyin-fav-filter', favFilterOn ? 'on' : 'off');
+    applyFilters();
+});
+searchInput.addEventListener('input', applyFilters);
+mediaFilter.addEventListener('change', applyFilters);
+
+function toggleFav(btn, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var post = btn.dataset.post;
+    var idx = favs.indexOf(post);
+    if (idx === -1) {
+        favs.push(post);
+        btn.classList.add('faved');
+    } else {
+        favs.splice(idx, 1);
+        btn.classList.remove('faved');
+    }
+    localStorage.setItem(favKey, JSON.stringify(favs));
+    applyFilters();
+}
+
+var drawer = document.getElementById('preview-drawer');
+var scrim = document.getElementById('preview-scrim');
+var closeBtn = document.getElementById('preview-close');
+var mediaBox = document.getElementById('preview-media');
+var infoBox = document.getElementById('preview-info');
+var detailLink = document.getElementById('preview-detail');
+var downloadForm = document.getElementById('preview-download-form');
+
+function setPreviewLoading(card) {
+    drawer.setAttribute('aria-hidden', 'false');
+    drawer.classList.add('open');
+    scrim.hidden = false;
+    document.getElementById('preview-title').textContent = card.dataset.title || '作品预览';
+    document.getElementById('preview-kind').textContent = 'Loading';
+    document.getElementById('preview-meta').textContent = '';
+    mediaBox.innerHTML = '<div class="preview-loading">加载中</div>';
+    infoBox.textContent = '';
+    detailLink.href = card.dataset.detailUrl || '#';
+}
+
+function renderPreview(data) {
+    document.getElementById('preview-title').textContent = data.title || '未命名作品';
+    document.getElementById('preview-kind').textContent = data.media_kind === 'video' ? '视频作品' : (data.motion_available ? '动图作品' : '图片作品');
+    document.getElementById('preview-meta').textContent = data.date_str + ' · ' + data.image_count + ' 张';
+    var firstImage = data.images && data.images.length ? data.images[0] : '';
+    mediaBox.innerHTML = firstImage ? '<img src="' + firstImage + '" alt="作品预览图">' : '<div class="preview-loading">暂无预览图</div>';
+    infoBox.textContent = (data.info_text || '').slice(0, 500);
+    detailLink.href = data.detail_href || '#';
+    if (data.download_video_href) {
+        downloadForm.hidden = false;
+        downloadForm.action = data.download_video_href;
+    } else {
+        downloadForm.hidden = true;
+        downloadForm.action = '#';
+    }
+}
+
+function openPreview(btn, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var card = btn.closest('.thumb-card');
+    setPreviewLoading(card);
+    fetch(card.dataset.previewUrl)
+        .then(function(resp) { return resp.json(); })
+        .then(renderPreview)
+        .catch(function() {
+            mediaBox.innerHTML = '<div class="preview-loading">加载失败</div>';
+        });
+}
+
+function closePreview() {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    scrim.hidden = true;
+}
+
+closeBtn.addEventListener('click', closePreview);
+scrim.addEventListener('click', closePreview);
+window.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePreview();
+});
+applyFilters();
+</script>
+{% endblock %}

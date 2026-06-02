@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }} - 抖音爬虫{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">首页</a> / <a href="/user/{{ user_dir | quote }}/">{{ user_dir }}</a> / <span>{{ post.date_str }}</span>
+</div>
+<div class="post-detail">
+    <div class="post-header">
+        <h1>{{ post.title }}</h1>
+        {% if post.media_kind == "video" %}
+        <p class="post-meta">{{ post.date_str }} · 视频作品 · {{ "已下载视频文件" if post.video_downloaded else "仅缓存封面" }}</p>
+        {% else %}
+        <p class="post-meta">{{ post.date_str }} · {{ post.image_count }} 张图片{% if post.motion_available %} · 含动图{% endif %}</p>
+        {% endif %}
+    </div>
+    {% if message %}
+    <div class="alert {% if message_kind == 'error' %}alert-error{% else %}alert-success{% endif %}">{{ message }}</div>
+    {% endif %}
+    {% if info_text %}
+    <div class="info-box">
+        <pre>{{ info_text }}</pre>
+    </div>
+    {% endif %}
+    {% if post.media_kind == "video" %}
+    <div class="post-actions">
+        <form method="post" action="/user/{{ user_dir | quote }}/{{ post.dir_name | quote }}/download-video">
+            <button type="submit" class="btn btn-primary">{{ "重新下载视频" if post.video_downloaded else "下载视频" }}</button>
+        </form>
+        {% if post.video_downloaded %}
+        <a class="btn btn-secondary" href="{{ data_prefix }}/{{ post.dir_name | quote }}/{{ post.video_file_name }}" target="_blank" rel="noopener">打开视频</a>
+        {% endif %}
+    </div>
+    {% if post.video_downloaded %}
+    <div class="video-preview">
+        <video controls preload="metadata" src="{{ data_prefix }}/{{ post.dir_name | quote }}/{{ post.video_file_name }}"></video>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div class="carousel">
+        <div class="carousel-viewport">
+            <img id="carousel-img" src="" alt="" onclick="openLightbox()">
+            <video id="carousel-video" muted loop playsinline preload="metadata" style="display:none"></video>
+            <button class="carousel-btn carousel-btn-prev" onclick="prevImage()">&#8249;</button>
+            <button class="carousel-btn carousel-btn-next" onclick="nextImage()">&#8250;</button>
+        </div>
+        <div class="carousel-counter">
+            <div><span id="carousel-index">1</span> / <span id="carousel-total">{{ images | length }}</span></div>
+            <span id="slideshow-status" style="margin-left:10px;display:none"></span>
+            <button class="slideshow-btn" id="slideshow-btn" onclick="toggleSlideshow()" title="幻灯片自动播放">
+                ▶ 播放 <span class="slideshow-speed" id="slideshow-speed-label">3s</span>
+            </button>
+        </div>
+        <div class="thumb-strip" id="thumb-strip">
+            {% for img in images %}
+            <div class="thumb-strip-item" data-index="{{ loop.index0 }}" onclick="goToImage({{ loop.index0 }})">
+                <img src="{{ data_prefix }}/{{ post.dir_name | quote }}/{{ img }}" alt="{{ img }}" loading="lazy">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="lightbox" id="lightbox">
+        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <div class="lightbox-image-container" id="lightbox-container">
+            <img id="lightbox-img" src="" alt="" draggable="false">
+        </div>
+        <div class="lightbox-toolbar">
+            <button id="btn-rotate-l" title="左转90°">↺</button>
+            <button id="btn-zoom-out" title="缩小">−</button>
+            <span class="zoom-label" id="zoom-label">100%</span>
+            <button id="btn-zoom-in" title="放大">+</button>
+            <button id="btn-rotate-r" title="右转90°">↻</button>
+            <button id="btn-reset" title="重置">⟲</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+var allImages = [
+    {% for img in images %}"{{ data_prefix }}/{{ post.dir_name | quote }}/{{ img }}"{% if not loop.last %},{% endif %}{% endfor %}
+];
+var motionSources = [
+    {% for src in motion_sources %}"{{ src }}"{% if not loop.last %},{% endif %}{% endfor %}
+];
+var currentIdx = 0;
+var carouselImg = document.getElementById('carousel-img');
+var carouselVideo = document.getElementById('carousel-video');
+
+function showImage(idx) {
+    currentIdx = (idx + allImages.length) % allImages.length;
+    carouselImg.src = allImages[currentIdx];
+    document.getElementById('carousel-index').textContent = currentIdx + 1;
+    var items = document.querySelectorAll('.thumb-strip-item');
+    items.forEach(function(item, i) {
+        if (i === currentIdx) item.classList.add('active');
+        else item.classList.remove('active');
+        if (i === currentIdx) item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    });
+    updateCarouselMedia();
+}
+
+function prevImage() { stopSlideshow(); showImage(currentIdx - 1); }
+function nextImage() { showImage(currentIdx + 1); }
+function goToImage(idx) { stopSlideshow(); showImage(idx); }
+
+function updateCarouselMedia() {
+    var motionSrc = motionSources[currentIdx] || "";
+    if (!motionSrc) {
+        carouselVideo.pause();
+        carouselVideo.removeAttribute('src');
+        carouselVideo.load();
+        carouselVideo.style.display = 'none';
+        carouselImg.style.display = '';
+        return;
+    }
+    carouselImg.style.display = 'none';
+    carouselVideo.style.display = '';
+    if (carouselVideo.getAttribute('src') !== motionSrc) {
+        carouselVideo.setAttribute('src', motionSrc);
+        carouselVideo.setAttribute('poster', allImages[currentIdx] || "");
+        carouselVideo.load();
+    }
+    var playPromise = carouselVideo.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(function() {});
+    }
+}
+
+// ===== 幻灯片自动播放 =====
+var slideshowTimer = null;
+var slideshowSpeeds = [2000, 3000, 5000, 10000];
+var slideshowSpeedIdx = 1; // default 3s
+
+function toggleSlideshow() {
+    if (slideshowTimer) { stopSlideshow(); return; }
+    startSlideshow();
+}
+
+function startSlideshow() {
+    var speed = slideshowSpeeds[slideshowSpeedIdx];
+    var status = document.getElementById('slideshow-status');
+    var btn = document.getElementById('slideshow-btn');
+    btn.classList.add('active');
+    btn.innerHTML = '⏸ 暂停 <span class="slideshow-speed" id="slideshow-speed-label">' + (speed/1000) + 's</span>';
+    status.style.display = 'inline';
+    status.innerHTML = '<span class="slideshow-indicator"></span>';
+
+    slideshowTimer = setInterval(function() {
+        currentIdx = (currentIdx + 1) % allImages.length;
+        showImage(currentIdx);
+    }, speed);
+}
+
+function stopSlideshow() {
+    if (!slideshowTimer) return;
+    clearInterval(slideshowTimer);
+    slideshowTimer = null;
+    var btn = document.getElementById('slideshow-btn');
+    var speed = slideshowSpeeds[slideshowSpeedIdx];
+    btn.classList.remove('active');
+    btn.innerHTML = '▶ 播放 <span class="slideshow-speed" id="slideshow-speed-label">' + (speed/1000) + 's</span>';
+    var status = document.getElementById('slideshow-status');
+    status.style.display = 'none';
+    status.innerHTML = '';
+}
+
+// 点击速度切换（循环）
+document.getElementById('slideshow-btn').addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    slideshowSpeedIdx = (slideshowSpeedIdx + 1) % slideshowSpeeds.length;
+    var speed = slideshowSpeeds[slideshowSpeedIdx];
+    var wasPlaying = !!slideshowTimer;
+    stopSlideshow();
+    if (wasPlaying) startSlideshow();
+    else {
+        document.getElementById('slideshow-speed-label').textContent = (speed/1000) + 's';
+    }
+});
+
+// ===== 灯箱：缩放 / 拖拽 / 旋转 =====
+var lb = document.getElementById('lightbox');
+var lbImg = document.getElementById('lightbox-img');
+var lbContainer = document.getElementById('lightbox-container');
+var lbScale = 1;
+var lbRotation = 0;
+var lbPanX = 0, lbPanY = 0;
+var isDragging = false;
+var dragStartX = 0, dragStartY = 0;
+var panStartX = 0, panStartY = 0;
+
+function updateLightboxTransform() {
+    lbImg.style.transform = 'translate(' + lbPanX + 'px, ' + lbPanY + 'px) rotate(' + lbRotation + 'deg) scale(' + lbScale + ')';
+    document.getElementById('zoom-label').textContent = Math.round(lbScale * 100) + '%';
+}
+
+function resetLightbox() {
+    lbScale = 1; lbRotation = 0; lbPanX = 0; lbPanY = 0;
+    updateLightboxTransform();
+}
+
+function openLightbox() {
+    lbImg.src = allImages[currentIdx];
+    resetLightbox();
+    lb.classList.add('open');
+}
+
+function closeLightbox() {
+    lb.classList.remove('open');
+    resetLightbox();
+}
+
+lb.addEventListener('wheel', function(e) {
+    if (!lb.classList.contains('open')) return;
+    e.preventDefault();
+    var delta = e.deltaY > 0 ? -0.1 : 0.1;
+    var newScale = Math.min(5, Math.max(0.1, lbScale + delta));
+    var rect = lbContainer.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    var ratio = newScale / lbScale;
+    lbPanX = mx - ratio * (mx - lbPanX);
+    lbPanY = my - ratio * (my - lbPanY);
+    lbScale = newScale;
+    updateLightboxTransform();
+});
+
+lbContainer.addEventListener('mousedown', function(e) {
+    if (e.target.tagName === 'BUTTON') return;
+    isDragging = true;
+    lbContainer.classList.add('grabbing');
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    panStartX = lbPanX;
+    panStartY = lbPanY;
+    e.preventDefault();
+});
+
+window.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    lbPanX = panStartX + (e.clientX - dragStartX);
+    lbPanY = panStartY + (e.clientY - dragStartY);
+    updateLightboxTransform();
+});
+
+window.addEventListener('mouseup', function() {
+    if (isDragging) { isDragging = false; lbContainer.classList.remove('grabbing'); }
+});
+
+lbContainer.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+        isDragging = true; dragStartX = e.touches[0].clientX;
+        dragStartY = e.touches[0].clientY;
+        panStartX = lbPanX; panStartY = lbPanY;
+    }
+});
+window.addEventListener('touchmove', function(e) {
+    if (!isDragging || e.touches.length !== 1) return;
+    lbPanX = panStartX + (e.touches[0].clientX - dragStartX);
+    lbPanY = panStartY + (e.touches[0].clientY - dragStartY);
+    updateLightboxTransform();
+});
+window.addEventListener('touchend', function() { isDragging = false; });
+
+document.getElementById('btn-zoom-in').addEventListener('click', function() { lbScale = Math.min(5, lbScale + 0.25); updateLightboxTransform(); });
+document.getElementById('btn-zoom-out').addEventListener('click', function() { lbScale = Math.max(0.1, lbScale - 0.25); updateLightboxTransform(); });
+document.getElementById('btn-rotate-l').addEventListener('click', function() { lbRotation -= 90; updateLightboxTransform(); });
+document.getElementById('btn-rotate-r').addEventListener('click', function() { lbRotation += 90; updateLightboxTransform(); });
+document.getElementById('btn-reset').addEventListener('click', resetLightbox);
+
+window.addEventListener('keydown', function(e) {
+    if (lb.classList.contains('open')) {
+        if (e.key === 'ArrowLeft') { showImage(currentIdx - 1); lbImg.src = allImages[currentIdx]; resetLightbox(); }
+        else if (e.key === 'ArrowRight') { showImage(currentIdx + 1); lbImg.src = allImages[currentIdx]; resetLightbox(); }
+        else if (e.key === 'Escape') closeLightbox();
+        else if (e.key === '+' || e.key === '=') { lbScale = Math.min(5, lbScale + 0.25); updateLightboxTransform(); }
+        else if (e.key === '-') { lbScale = Math.max(0.1, lbScale - 0.25); updateLightboxTransform(); }
+        else if (e.key === '0') resetLightbox();
+        return;
+    }
+    if (e.key === 'ArrowLeft') { stopSlideshow(); prevImage(); }
+    else if (e.key === 'ArrowRight') nextImage();
+    else if (e.key === 'Escape') closeLightbox();
+    else if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); toggleSlideshow(); }
+});
+
+lb.addEventListener('click', function(e) { if (e.target === lb) closeLightbox(); });
+
+showImage(0);
+</script>
+{% endblock %}

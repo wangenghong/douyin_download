@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}抖音爬虫{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ asset_version }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="admin-shell">
+        <aside class="sidebar" aria-label="主导航">
+            <div class="sidebar-brand">
+                <a href="/" class="nav-brand">
+                    <span class="brand-mark" aria-hidden="true">D</span>
+                    <span>
+                        <span class="brand-title">抖音爬虫</span>
+                        <span class="brand-subtitle">Media Admin</span>
+                    </span>
+                </a>
+            </div>
+
+            <nav class="nav-links" aria-label="页面导航">
+                <a href="/" class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">⌂</span>
+                    <span>首页</span>
+                </a>
+                <a href="/config" class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">⚙</span>
+                    <span>配置与爬取</span>
+                </a>
+                <a href="/favorites" class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">♡</span>
+                    <span>收藏</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p class="sidebar-label">主题</p>
+                <div class="theme-switcher" role="group" aria-label="主题切换">
+                    <button type="button" class="theme-dot theme-dot-dark active" data-theme="dark" title="黑色" aria-label="切换到黑色主题"></button>
+                    <button type="button" class="theme-dot theme-dot-light" data-theme="light" title="白色" aria-label="切换到白色主题"></button>
+                    <button type="button" class="theme-dot theme-dot-kraft" data-theme="kraft" title="牛皮纸" aria-label="切换到牛皮纸主题"></button>
+                </div>
+                <p class="app-version">Web UI · v0.1.0</p>
+            </div>
+        </aside>
+
+        <div class="main-panel">
+            <main class="container">
+                {% block content %}{% endblock %}
+            </main>
+            <footer class="footer">
+                <p>抖音爬虫 Web UI · 本地媒体管理</p>
+            </footer>
+        </div>
+    </div>
+    <script>
+(function() {
+    var saved = localStorage.getItem("douyin-theme") || "dark";
+    document.documentElement.className = "theme-" + saved;
+    var dots = document.querySelectorAll(".theme-dot");
+    dots.forEach(function(d) {
+        if (d.dataset.theme === saved) d.classList.add("active");
+        else d.classList.remove("active");
+        d.addEventListener("click", function() {
+            var t = d.dataset.theme;
+            document.documentElement.className = "theme-" + t;
+            localStorage.setItem("douyin-theme", t);
+            dots.forEach(function(x) { x.classList.remove("active"); });
+            d.classList.add("active");
+        });
+    });
+    var path = window.location.pathname;
+    document.querySelectorAll(".nav-link").forEach(function(link) {
+        var href = link.getAttribute("href");
+        var isActive = href === "/" ? path === "/" : path.indexOf(href) === 0;
+        if (isActive) link.classList.add("active");
+    });
+})();
+    </script>
+    {% block extra_script %}{% endblock %}
+</body>
+</html>

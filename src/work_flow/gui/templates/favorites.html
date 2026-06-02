@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}全局收藏 - 抖音爬虫{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>全局收藏</h1>
+    <p class="subtitle">当前用户下已收藏的作品</p>
+</div>
+<span id="favs-data" style="display:none">{{ users | tojson }}</span>
+<div id="favs-content"></div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+var usersData = JSON.parse(document.getElementById("favs-data").textContent);
+var container = document.getElementById("favs-content");
+var hasAny = false;
+
+usersData.forEach(function(user) {
+    var favKey = "douyin-favs-" + user.dir_name;
+    var favDir = [];
+    try { favDir = JSON.parse(localStorage.getItem(favKey) || "[]"); } catch(e) {}
+    var favPosts = user.posts.filter(function(p) { return favDir.indexOf(p.dir_name) !== -1; });
+    if (favPosts.length === 0) return;
+    hasAny = true;
+
+    var section = document.createElement("div");
+    section.className = "fav-section";
+    section.innerHTML = "<h2 class='fav-user-header'><a href='" + user.user_href + "'>" + user.dir_name + "</a></h2>"
+        + "<div class='thumb-grid fav-grid'></div>";
+
+    var grid = section.querySelector(".fav-grid");
+    favPosts.forEach(function(post) {
+        var card = document.createElement("div");
+        card.className = "thumb-card";
+        var imgSrc = post.image_src;
+        var title = post.title.length > 30 ? post.title.substring(0, 30) + "..." : post.title;
+        var mediaHtml = post.motion_src
+            ? "<video autoplay muted loop playsinline preload='metadata' poster='" + imgSrc + "'><source src='" + post.motion_src + "' type='video/mp4'></video>"
+            : "<img src='" + imgSrc + "' alt='" + title + "' loading='lazy'>";
+        card.innerHTML =
+            "<a href='" + post.detail_href + "' class='thumb-link'>"
+            + "<div class='thumb-img'>" + mediaHtml + "</div>"
+            + "<div class='thumb-meta'><p class='thumb-date'>" + post.date_str + "</p><p class='thumb-title'>" + title + "</p></div>"
+            + "</a>";
+        grid.appendChild(card);
+    });
+    container.appendChild(section);
+});
+
+if (!hasAny) {
+    container.innerHTML = "<div class='empty-state'><p class='empty-icon' aria-hidden='true'>--</p><p>开始收藏你喜欢的作品吧</p></div>";
+}
+</script>
+{% endblock %}
