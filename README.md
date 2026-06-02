@@ -50,7 +50,7 @@ output/
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | DOUYIN_COOKIE | 登录 Cookie 字符串 | (必填) |
-| DOUYIN_USER_ID | 抖音用户 ID | Ziky_XY |
+| DOUYIN_USER_ID | 抖音用户 ID | |
 | MAX_POSTS | 最大爬取作品数 | 50 |
 | OUTPUT_DIR | 输出目录 | ./output |
 | HEADLESS | 是否无头模式 (true/false) | true |
